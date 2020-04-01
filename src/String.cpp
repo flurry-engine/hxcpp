@@ -8,6 +8,7 @@
 #include "hx/Hash.h"
 #include <hx/Thread.h>
 #include <locale>
+#include <psp2/kernel/clib.h>
 
 using namespace hx;
 
@@ -2245,13 +2246,19 @@ hx::Object *String::__ToObject() const
 
 void String::__boot()
 {
+   sceClibPrintf("hxcpp: booting string\r\n");
+
    #ifdef HXCPP_COMBINE_STRINGS
+   sceClibPrintf("hxcpp: combining strings\r\n");
    InitIdent();
    #endif
 
+   sceClibPrintf("hxcpp: creating string set\r\n");
    sPermanentStringSet = new StringSet();
+   sceClibPrintf("hxcpp: adding gc root\r\n");
    GCAddRoot((hx::Object **)&sPermanentStringSet);
 
+   sceClibPrintf("hxcpp: setting up safe and dodgy chars\r\n");
    for(int i=0;i<256;i++)
       safeChars[i] = i>32 && i<127;
    unsigned char dodgy[] = { 36, 38, 43, 44, 47, 58, 59, 61, 63, 64,
@@ -2259,6 +2266,7 @@ void String::__boot()
    for(int i=0;i<sizeof(dodgy);i++)
       safeChars[ dodgy[i] ] = 0;
 
+   sceClibPrintf("hxcpp: looping over byte range\r\n");
    for(int c=0;c<256;c++)
    {
       #ifdef HX_SMART_STRINGS

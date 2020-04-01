@@ -1,7 +1,6 @@
 <xml>
 
-<!-- LINUX TOOLS -------------------------------------->
-
+<!-- LINUX TOOLS -->
 
 <section if="xcompile" >
    <section if="HXCPP_M64">
@@ -38,11 +37,11 @@
   <flag value="-c"/>
   <flag value="-fvisibility=hidden"/>
   <cppflag value="-frtti"/>
-  <cppflag value="-std=c++11" if="HXCPP_CPP11" />
+  <cppflag value="-std=c++11"/>
   <flag value="-g" if="debug"/>
   <flag value="-O2" unless="debug"/>
-  <flag value="-fpic"/>
-  <flag value="-fPIC"/>
+  <!-- <flag value="-fpic"/>
+  <flag value="-fPIC"/> -->
   <flag value="-Wno-overflow" />
   <cppflag value="-Wno-invalid-offsetof" />
   <flag value="-DHX_LINUX"/>
@@ -50,9 +49,9 @@
   <flag value="-DHXCPP_MULTI_THREADED" if="HXCPP_MULTI_THREADED"/>
   <flag value="-DHXCPP_BIG_ENDIAN" if="HXCPP_BIG_ENDIAN"/>
   <include name="toolchain/common-defines.xml" />
-  <flag value="-m32" unless="noM32"/>
-  <flag value="-m64" if="HXCPP_M64" unless="noM64" />
-  <flag value="-DHXCPP_M64" if="HXCPP_M64"/>
+  <!-- <flag value="-m32" unless="noM32"/> -->
+  <!-- <flag value="-m64" if="HXCPP_M64" unless="noM64" /> -->
+  <!-- <flag value="-DHXCPP_M64" if="HXCPP_M64"/> -->
   <flag value="-I${HXCPP}/include"/>
   <objdir value="obj/linux${OBJEXT}/"/>
   <outflag value="-o"/>
@@ -67,11 +66,9 @@
   <flag value="-fPIC"/>
   <flag value="-m32" unless="noM32"/>
   <flag value="-m64" if="HXCPP_M64" unless="noM64" />
-  <!-- <flag value="-Wl,--unresolved-symbols=report-all"/> -->
   <flag value="-Xlinker"/>
   <flag value="--no-undefined" unless="HXCPP_ALLOW_UNDEFINED" />
   <flag value="-debug" if="debug"/>
-  <lib name="-ldl"/>
   <ext value=".dso"/>
   <outflag value="-o "/>
 </linker>
@@ -80,11 +77,10 @@
   <exe name="${CXX}" if="CXX" />
   <fromfile value="" if="GCC_OLD" />
   <flag value="-debug" if="debug"/>
-  <flag value="-rdynamic"/>
-  <flag value="-m32" unless="noM32"/>
-  <flag value="-m64" if="HXCPP_M64" unless="noM64" />
-  <lib name="-ldl"/>
-  <ext value=""/>
+  <!-- <flag value="-m32" unless="noM32"/> -->
+  <!-- <flag value="-m64" if="HXCPP_M64" unless="noM64" /> -->
+  <flag value="-Wl,-q"/>
+  <ext value=".elf"/>
   <outflag value="-o "/>
 </linker>
 

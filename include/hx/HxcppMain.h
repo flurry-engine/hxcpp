@@ -78,6 +78,33 @@
    {
    #else
 
+   #include <psp2/kernel/clib.h>
+   #include <psp2/kernel/threadmgr.h> 
+
+   extern "C"
+   {
+      unsigned int sleep(unsigned int seconds)
+      {
+         sceKernelDelayThread(seconds*1000*1000);
+         return 0;
+      }
+
+      int usleep(useconds_t usec)
+      {
+         sceKernelDelayThread(usec);
+         return 0;
+      }
+
+      void __sinit(struct _reent *);
+   }
+
+   __attribute__((constructor(101)))
+   void pthread_setup(void) 
+   {
+      pthread_init();
+      __sinit(_REENT);
+   }
+
    extern int _hxcpp_argc;
    extern char **_hxcpp_argv;
    int main(int argc,char **argv)
@@ -85,11 +112,19 @@
       _hxcpp_argc = argc;
       _hxcpp_argv = argv;
    #endif
+      sceClibPrintf("App started\r\n");
+
       HX_TOP_OF_STACK
       hx::Boot();
+
+      sceClibPrintf("Hxcpp booted\r\n");
+
       try
       {
          __boot_all();
+
+         sceClibPrintf("Invoking hxcpp main\r\n");
+
          __hxcpp_main();
       }
       catch (Dynamic e)
@@ -98,7 +133,7 @@
          #ifdef HX_WIN_MAIN
          MessageBoxA(0,  e==null() ? "null" : e->toString().__CStr(), "Error", 0);
          #else
-         printf("Error : %s\n",e==null() ? "null" : e->toString().__CStr());
+         sceClibPrintf("Error : %s\n",e==null() ? "null" : e->toString().__CStr());
          #endif
          return -1;
       }

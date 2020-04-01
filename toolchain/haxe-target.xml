@@ -12,7 +12,7 @@
 <!-- You can override the exes an "exe" section on your own .hxcpp_config -->
 <!-- You can use replace="1" to change the compiler, or omit to add flags -->
 
-<!-- Library files & targets -------------------------------------->
+<!-- Library files & targets -->
 
 <files id="cffi-depends">
   <depend name="${HXCPP}/include/hx/CFFI.h"/>
@@ -232,7 +232,8 @@
   <files id="cppia" if="scriptable" />
   <files id="rc" unless="static_link" />
   <lib name="-lpthread" if="linux" unless="static_link" />
-  <lib name="-ldl" if="linux" unless="static_link" />
+  <lib name="-lSceCtrl_stub"/>
+  <!-- <lib name="-ldl" if="linux" unless="static_link" /> -->
 </target>
 
 

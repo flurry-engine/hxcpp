@@ -6,6 +6,7 @@
 #include "../Hash.h"
 #include "GcRegCapture.h"
 #include <hx/Unordered.h>
+#include <psp2/kernel/clib.h>
 
 #include <stdlib.h>
 
@@ -5619,6 +5620,8 @@ public:
 
    void Release()
    {
+      sceClibPrintf("Hxcpp GC: Releasing thread");
+
       mStackLocks = 0;
 
       onThreadDetach();
@@ -5704,10 +5707,16 @@ public:
    //
    void SetTopOfStack(int *inTop,bool inPush)
    {
+      sceClibPrintf("Hxcpp GC: setting thread to the top of the stack\r\n");
+
       if (inTop)
       {
-         if (!mTopOfStack)
+         sceClibPrintf("Hxcpp GC: valid top pointer\r\n");
+
+         if (!mTopOfStack) {
+            sceClibPrintf("Hxcpp GC: 1\r\n");
             mTopOfStack = inTop;
+         }
          // EMSCRIPTEN the stack grows upwards
          // It could be that the main routine was called from deep with in the stack,
          //  then some callback was called from a higher location on the stack
@@ -5715,14 +5724,20 @@ public:
          else if (inTop < mTopOfStack)
             mTopOfStack = inTop;
          #else
-         else if (inTop > mTopOfStack)
+         else if (inTop > mTopOfStack) {
+            sceClibPrintf("Hxcpp GC: 2\r\n");
             mTopOfStack = inTop;
+         }
          #endif
 
-         if (inPush)
+         if (inPush) {
+            sceClibPrintf("Hxcpp GC: 2\r\n");
             mStackLocks++;
-         else
+         }
+         else {
+            sceClibPrintf("Hxcpp GC: 3\r\n");
             mGlobalStackLock = true;
+         }
 
          #ifndef HXCPP_SINGLE_THREADED_APP
          if (mGCFreeZone)
@@ -5731,6 +5746,8 @@ public:
       }
       else
       {
+         sceClibPrintf("Hxcpp GC: null top pointer");
+
          if (mStackLocks>0)
             mStackLocks--;
          else
@@ -5743,8 +5760,11 @@ public:
       }
 
       #ifdef VerifyStackRead
+      sceClibPrintf("Hxcpp GC: verifying stack read!\r\n");
       VerifyStackRead(mBottomOfStack, mTopOfStack)
       #endif
+
+      sceClibPrintf("Hxcpp GC: done!\r\n");
    }
 
 

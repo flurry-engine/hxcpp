@@ -366,7 +366,7 @@ double __hxcpp_timezone_offset(double inSeconds)
 
    return mktime(&localTime) - mktime(&gmTime);
    #else
-   return localTime.tm_gmtoff;
+   return 0;
    #endif
 }
 

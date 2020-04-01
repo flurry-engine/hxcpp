@@ -66,37 +66,14 @@ void hxFreeLibrary(Module inModule) { FreeLibrary(inModule); }
 
 typedef void *Module;
 
-#include <dlfcn.h>
 typedef void *Module;
 Module hxLoadLibrary(String inLib)
 {
-   int flags = RTLD_GLOBAL;
-   #if defined(HXCPP_RTLD_LAZY) || defined(IPHONE) || defined(EMSCRIPTEN) || defined(STATIC_LINK) || defined(APPLETV)
-   flags |= RTLD_LAZY;
-   #else
-   flags |= RTLD_NOW;
-   #endif
-   
-   Module result = dlopen(inLib.__CStr(), flags);
-   if (gLoadDebug)
-   {
-#ifdef HX_WINRT
-      if (result)
-         WINRT_LOG("Loaded : %s.\n", inLib.__CStr());
-      else
-         WINRT_LOG("Error loading library: (%s) %s\n", inLib.__CStr(), dlerror());
-#else
-      if (result)
-         printf("Loaded : %s.\n", inLib.__CStr());
-      else
-         printf("Error loading library: (%s) %s\n", inLib.__CStr(), dlerror());
-#endif
-   }
-   return result;
+   return nullptr;
 }
-void *hxFindSymbol(Module inModule, const char *inSymbol) { return dlsym(inModule,inSymbol); }
+void *hxFindSymbol(Module inModule, const char *inSymbol) { return nullptr; }
 
-void hxFreeLibrary(Module inModule) { dlclose(inModule); }
+void hxFreeLibrary(Module inModule) { }
 
 #endif
 

@@ -430,7 +430,7 @@ inline void HxSleep(unsigned int ms)
    struct timespec tmp;
    t.tv_sec = 0;
    t.tv_nsec = ms * 1000000;
-   nanosleep(&t, &tmp);
+   // nanosleep(&t, &tmp);
 }
 
 #endif
