@@ -248,7 +248,7 @@ static int sgAllocsSinceLastSpam = 0;
 #ifdef ANDROID
 #define GCLOG(...) __android_log_print(ANDROID_LOG_INFO, "gclog", __VA_ARGS__)
 #else
-#define GCLOG printf
+#define GCLOG sceClibPrintf
 #endif
 
 #ifdef PROFILE_COLLECT
@@ -540,7 +540,7 @@ void CriticalGCError(const char *inMessage)
    #elif defined(HX_WINRT)
       WINRT_LOG("HXCPP Critical Error: %s\n", inMessage);
    #else
-   printf("Critical Error: %s\n", inMessage);
+   sceClibPrintf("Critical Error: %s\n", inMessage);
    #endif
 
    DebuggerTrap();
@@ -560,17 +560,17 @@ typedef HxMutex ThreadPoolLock;
 
 static ThreadPoolLock sThreadPoolLock;
 
-#if !defined(HX_WINDOWS) && !defined(EMSCRIPTEN) && \
-   !defined(__SNC__) && !defined(__ORBIS__)
-#define HX_GC_PTHREADS
-typedef pthread_cond_t ThreadPoolSignal;
-inline void WaitThreadLocked(ThreadPoolSignal &ioSignal)
-{
-   pthread_cond_wait(&ioSignal, &sThreadPoolLock.mMutex);
-}
-#else
+// #if !defined(HX_WINDOWS) && !defined(EMSCRIPTEN) && \
+//    !defined(__SNC__) && !defined(__ORBIS__)
+// #define HX_GC_PTHREADS
+// typedef pthread_cond_t ThreadPoolSignal;
+// inline void WaitThreadLocked(ThreadPoolSignal &ioSignal)
+// {
+//    pthread_cond_wait(&ioSignal, &sThreadPoolLock.mMutex);
+// }
+// #else
 typedef HxSemaphore ThreadPoolSignal;
-#endif
+// #endif
 
 typedef TAutoLock<ThreadPoolLock> ThreadPoolAutoLock;
 
@@ -1313,13 +1313,13 @@ struct BlockDataInfo
                   int rows = header & IMMIX_ALLOC_ROW_COUNT;
                   if (rows==0)
                   {
-                     printf("BAD ROW0 %s\n", inWhere);
+                     sceClibPrintf("BAD ROW0 %s\n", inWhere);
                      DebuggerTrap();
                   }
                   for(int r=0;r<rows;r++)
                      if (!mPtr->mRowMarked[r+i])
                      {
-                        printf("Unmarked row %dx %d/%d %s, t=%d!\n", i, r, rows, inWhere,sgTimeToNextTableUpdate);
+                        sceClibPrintf("Unmarked row %dx %d/%d %s, t=%d!\n", i, r, rows, inWhere,sgTimeToNextTableUpdate);
                         DebuggerTrap();
                      }
                }
@@ -1612,7 +1612,7 @@ struct GlobalChunks
    {
       if (!(sRunningThreads & (1<<inThreadId)))
       {
-         printf("Complete non-running thread?\n");
+         sceClibPrintf("Complete non-running thread?\n");
          DebuggerTrap();
       }
       sRunningThreads &= ~(1<<inThreadId);
@@ -1767,14 +1767,14 @@ public:
        #ifdef ANDROID
        __android_log_print(ANDROID_LOG_ERROR, "trace", "Class referenced from");
        #else
-       printf("Class referenced from:\n");
+       sceClibPrintf("Class referenced from:\n");
        #endif
 
        for(int i=0;i<n;i++)
           #ifdef ANDROID
           __android_log_print(ANDROID_LOG_INFO, "trace", "%s.%s",  mInfo[i].mClass, mInfo[i].mMember );
           #else
-          printf("%s.%s\n",  mInfo[i].mClass, mInfo[i].mMember );
+          sceClibPrintf("%s.%s\n",  mInfo[i].mClass, mInfo[i].mMember );
           #endif
 
        if (mPos>=StackSize)
@@ -1782,7 +1782,7 @@ public:
           #ifdef ANDROID
           __android_log_print(ANDROID_LOG_INFO, "trace", "... + deeper");
           #else
-          printf("... + deeper\n");
+          sceClibPrintf("... + deeper\n");
           #endif
        }
     }
@@ -1876,12 +1876,12 @@ public:
 /*
 void MarkerReleaseWorkerLocked( )
 {
-   //printf("Release...\n");
+   //sceClibPrintf("Release...\n");
    for(int i=0;i<sAllThreads;i++)
    {
       if ( ! (sRunningThreads & (1<<i) ) )
       {
-         //printf("Wake %d\n",i);
+         //sceClibPrintf("Wake %d\n",i);
          sRunningThreads |= (1<<i);
          sThreadWake[i]->Set();
          return;
@@ -1955,7 +1955,7 @@ void MarkAllocUnchecked(void *inPtr,hx::MarkContext *__inCtx)
       #if defined(HXCPP_GC_GENERATIONAL) && defined(HX_GC_VERIFY)
       if (sGcVerifyGenerational)
       {
-         printf("Nursery alloc escaped generational collection %p\n", inPtr);
+         sceClibPrintf("Nursery alloc escaped generational collection %p\n", inPtr);
          DebuggerTrap();
       }
       #endif
@@ -1996,7 +1996,7 @@ void MarkAllocUnchecked(void *inPtr,hx::MarkContext *__inCtx)
       #if defined(HXCPP_GC_GENERATIONAL) && defined(HX_GC_VERIFY)
       if (sGcVerifyGenerational && ((unsigned char *)inPtr)[HX_ENDIAN_MARK_ID_BYTE] != gPrevByteMarkID)
       {
-         printf("Alloc missed int generational collection %p\n", inPtr);
+         sceClibPrintf("Alloc missed int generational collection %p\n", inPtr);
          DebuggerTrap();
       }
       #endif
@@ -2042,7 +2042,7 @@ void MarkObjectAllocUnchecked(hx::Object *inPtr,hx::MarkContext *__inCtx)
       #if defined(HXCPP_GC_GENERATIONAL) && defined(HX_GC_VERIFY)
          if (sGcVerifyGenerational)
          {
-            printf("Nursery object escaped generational collection %p\n", inPtr);
+            sceClibPrintf("Nursery object escaped generational collection %p\n", inPtr);
             DebuggerTrap();
          }
       #endif
@@ -2760,7 +2760,7 @@ void RegisterWeakHash(HashBase<Dynamic> *inHash)
 
 void InternalEnableGC(bool inEnable)
 {
-   //printf("Enable %d\n", sgInternalEnable);
+   //sceClibPrintf("Enable %d\n", sgInternalEnable);
    sgInternalEnable = inEnable;
 }
 
@@ -2880,17 +2880,17 @@ struct MoveBlockJob
       {
          if (from>=to)
          {
-            //printf("Caught up!\n");
+            //sceClibPrintf("Caught up!\n");
             return 0;
          }
          #ifndef HXCPP_GC_DEBUG_ALWAYS_MOVE
          // Pinned / full
          if (blocks[from]->mMoveScore<2)
          {
-            //printf("All other blocks good!\n");
+            //sceClibPrintf("All other blocks good!\n");
             while(from<to)
             {
-               //printf("Ignore DEFRAG %p ... %p\n", blocks[from]->mPtr, blocks[from]->mPtr+1);
+               //sceClibPrintf("Ignore DEFRAG %p ... %p\n", blocks[from]->mPtr, blocks[from]->mPtr+1);
                from++;
             }
             return 0;
@@ -2898,27 +2898,27 @@ struct MoveBlockJob
          #endif
          if (blocks[from]->mPinned)
          {
-            //printf("PINNED DEFRAG %p ... %p\n", blocks[from]->mPtr, blocks[from]->mPtr+1);
+            //sceClibPrintf("PINNED DEFRAG %p ... %p\n", blocks[from]->mPtr, blocks[from]->mPtr+1);
             from++;
          }
          else // Found one...
             break;
       }
-      //printf("From block %d (id=%d)\n", from, blocks[from]->mId);
+      //sceClibPrintf("From block %d (id=%d)\n", from, blocks[from]->mId);
       BlockDataInfo *result = blocks[from++];
-      ////printf("FROM DEFRAG %p ... %p\n", result->mPtr, result->mPtr + 1 );
+      ////sceClibPrintf("FROM DEFRAG %p ... %p\n", result->mPtr, result->mPtr + 1 );
       return result;
    }
    BlockDataInfo *getTo()
    {
       if (from>=to)
       {
-         //printf("No more room!\n");
+         //sceClibPrintf("No more room!\n");
          return 0;
       }
-      //printf("To block %d (id=%d)\n", to, blocks[to]->mId);
+      //sceClibPrintf("To block %d (id=%d)\n", to, blocks[to]->mId);
       BlockDataInfo *result = blocks[to--];
-      //printf("TO DEFRAG %p ... %p\n", result->mPtr, result->mPtr + 1 );
+      //sceClibPrintf("TO DEFRAG %p ... %p\n", result->mPtr, result->mPtr + 1 );
       return result;
    }
 };
@@ -2962,16 +2962,16 @@ void *HxAllocGCBlock(size_t inSize)
       size_t ptr_i = (size_t)(chunkData+0xffff) & ~((size_t)0xffff);
       chunkData = (unsigned char *)ptr_i;
       #endif
-      //printf("Using fixed blocks %p...%p\n", chunkData, chunkData+size);
+      //sceClibPrintf("Using fixed blocks %p...%p\n", chunkData, chunkData+size);
    }
    void *result = chunkData;
-   //printf(" %p\n", result);
+   //sceClibPrintf(" %p\n", result);
    chunkData += inSize;
    return result;
 }
 void HxFreeGCBlock(void *p)
 {
-   printf("todo - HX_GC_FIXED_BLOCKS %p\n",p);
+   sceClibPrintf("todo - HX_GC_FIXED_BLOCKS %p\n",p);
 }
 #else
 void *HxAllocGCBlock(size_t size) { return HxAlloc(size); }
@@ -3549,7 +3549,7 @@ public:
        // Maybe do something faster with weakmaps
 
 #ifdef HXCPP_TELEMETRY
-       //printf(" -- moving %018x to %018x, size %d\n", inFrom, inTo, size);
+       //sceClibPrintf(" -- moving %018x to %018x, size %d\n", inFrom, inTo, size);
        __hxt_gc_realloc(inFrom, inTo, size);
 #endif
 
@@ -3969,7 +3969,7 @@ public:
             for(int g=0;g<releasedGids.size();g++)
                if (mAllBlocks[i]->mGroupId == releasedGids[g])
                {
-                  printf("Group %d should be released.\n", mAllBlocks[i]->mGroupId);
+                  sceClibPrintf("Group %d should be released.\n", mAllBlocks[i]->mGroupId);
                   DebuggerTrap();
                }
             #endif
@@ -3985,7 +3985,7 @@ public:
          for(int r=0;r<releasedRange.size();r++)
          if ( ptr>=releasedRange[r].first && ptr<releasedRange[r].second )
          {
-            printf("Released block %p(%d:%p) still in list\n", info, info->mId, info->mPtr );
+            sceClibPrintf("Released block %p(%d:%p) still in list\n", info, info->mId, info->mPtr );
             DebuggerTrap();
          }
       }
@@ -4280,7 +4280,7 @@ public:
       }
       else
       {
-         printf("Finishe non-runnning thread?\n");
+         sceClibPrintf("Finishe non-runnning thread?\n");
          DebuggerTrap();
       }
    }
@@ -4316,7 +4316,7 @@ public:
 
          #ifdef HX_GC_VERIFY
          if (! (sRunningThreads & (1<<inId)) )
-            printf("Bad running threads!\n");
+            sceClibPrintf("Bad running threads!\n");
          #endif
 
          if (sgThreadPoolJob==tpjMark)
@@ -4475,7 +4475,7 @@ public:
 
          if (sRunningThreads)
          {
-            printf("Bad thread stop %d\n", sRunningThreads);
+            sceClibPrintf("Bad thread stop %d\n", sRunningThreads);
             DebuggerTrap();
          }
       }
@@ -4648,7 +4648,7 @@ public:
       {
          if ( mAllBlocks[i-1]->mPtr >= mAllBlocks[i]->mPtr)
          {
-            printf("Bad block order block[%d]=%p >= block[%d]=%p / %d\n", i-1, mAllBlocks[i-1]->mPtr,
+            sceClibPrintf("Bad block order block[%d]=%p >= block[%d]=%p / %d\n", i-1, mAllBlocks[i-1]->mPtr,
                     i, mAllBlocks[i]->mPtr, mAllBlocks.size() );
             DebuggerTrap();
          }
@@ -5529,7 +5529,7 @@ void MarkConservative(int *inBottom, int *inTop,hx::MarkContext *__inCtx)
 
                      int x = info->GetAllocType(pos-sizeof(int));
                      int y = info->GetEnclosingAllocType(pos-sizeof(int),&vptr);
-                     printf("but got %d,%d o=%d\n",x,y,sgCheckInternalOffset);
+                     sceClibPrintf("but got %d,%d o=%d\n",x,y,sgCheckInternalOffset);
                   }
                   #endif
                }
@@ -6459,7 +6459,7 @@ void *InternalRealloc(void *inData,int inSize, bool inExpand)
 
 
 #ifdef HXCPP_TELEMETRY
-   //printf(" -- reallocating %018x to %018x, size from %d to %d\n", inData, new_data, s, inSize);
+   //sceClibPrintf(" -- reallocating %018x to %018x, size from %d to %d\n", inData, new_data, s, inSize);
    __hxt_gc_realloc(inData, new_data, inSize);
 #endif
 
@@ -6567,7 +6567,7 @@ public:
 
       unsigned int s = ObjectSize(obj);
       void *result = InternalCreateConstBuffer(obj,s,false);
-      //printf(" Freeze %d\n", s);
+      //sceClibPrintf(" Freeze %d\n", s);
       *ioPtr = (hx::Object *)result;
       (*ioPtr)->__Visit(this);
    }
@@ -6578,7 +6578,7 @@ public:
       if (!data || IsConstAlloc(data))
          return;
       unsigned int s = ObjectSize(data);
-      //printf(" Freeze %d\n", s);
+      //sceClibPrintf(" Freeze %d\n", s);
       void *result = InternalCreateConstBuffer(data,s,false);
       *ioPtr = result;
    }
@@ -6620,7 +6620,7 @@ int __hxcpp_gc_trace(hx::Class inClass,bool inPrint)
        #elif defined(HX_WINRT)
        WINRT_LOG("GC trace not enabled in release build.");
        #else
-       printf("WARNING : GC trace not enabled in release build.\n");
+       sceClibPrintf("WARNING : GC trace not enabled in release build.\n");
        #endif
        return 0;
     #else
