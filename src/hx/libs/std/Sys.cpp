@@ -23,14 +23,16 @@
    #ifndef EPPC
       #include <unistd.h>
       #include <dirent.h>
-      #include <termios.h>
       #include <sys/time.h>
       #include <sys/times.h>
+      #ifndef HX_PSVITA
+         #include <termios.h>
+      #endif
    #endif
    #include <limits.h>
    #ifndef ANDROID
       #include <locale.h>
-      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__)
+      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__) && !defined(HX_PSVITA)
          #include <xlocale.h>
       #endif
    #endif
@@ -96,7 +98,7 @@ String _hx_std_get_env( String v )
 **/
 void _hx_std_put_env( String e, String v )
 {
-#ifdef HX_WINRT
+#if defined(HX_WINRT) || defined(HX_PSVITA)
    // Do nothing
 #elif defined(NEKO_WINDOWS)
    String set = e + HX_CSTRING("=") + v;
@@ -123,7 +125,9 @@ void _hx_std_sys_sleep( double f )
 #if defined(NEKO_WINDOWS)
    Sleep((DWORD)(f * 1000));
 #elif defined(EPPC)
-//TODO: Implement sys_sleep for EPPC
+   //TODO: Implement sys_sleep for EPPC
+#elif defined(HX_PSVITA)
+   //
 #else
    {
       struct timespec t;
@@ -150,7 +154,7 @@ void _hx_std_sys_sleep( double f )
 **/
 bool _hx_std_set_time_locale( String l )
 {
-#if defined(ANDROID) || defined(GCW0)
+#if defined(ANDROID) || defined(GCW0) || defined(HX_PSVITA)
     return false;
 #else
 
@@ -185,9 +189,11 @@ bool _hx_std_set_time_locale( String l )
 **/
 String _hx_std_get_cwd()
 {
-   #ifdef HX_WINRT
+#if defined(HX_WINRT)
    return HX_CSTRING("ms-appdata:///local/");
-   #elif defined(EPPC)
+#elif defined(HX_PSVITA)
+   return HX_CSTRING("app0://");
+#elif defined(EPPC)
    return String();
    #else
 #ifdef NEKO_WINDOWS
@@ -221,15 +227,15 @@ String _hx_std_get_cwd()
 **/
 bool _hx_std_set_cwd( String d )
 {
-   #if !defined(HX_WINRT) && !defined(EPPC)
-#ifdef NEKO_WINDOWS
-   return SetCurrentDirectoryW(d.__WCStr()) == 0;
-#else
-   return chdir(d.__s) == 0;
-#endif
+#if !defined(HX_WINRT) && !defined(EPPC) && !defined(HX_PSVITA)
+   #ifdef NEKO_WINDOWS
+      return SetCurrentDirectoryW(d.__WCStr()) == 0;
    #else
-   return false;
+      return chdir(d.__s) == 0;
    #endif
+#else
+   return false;
+#endif
 }
 
 
@@ -267,6 +273,8 @@ String _hx_std_sys_string()
    return HX_CSTRING("Emscripten");
 #elif defined(EPPC)
    return HX_CSTRING("EPPC");
+#elif defined(HX_PSVITA)
+   return HX_CSTRING("PSVita");
 #else
 #error Unknow system string
 #endif
@@ -293,9 +301,9 @@ bool _hx_std_sys_is64()
 **/
 int _hx_std_sys_command( String cmd )
 {
-   #if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH)
+#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(IPHONE) || defined(APPLETV) || defined(HX_APPLEWATCH) || defined(HX_PSVITA)
    return -1;
-   #else
+#else
    if( !cmd.raw_ptr() || !cmd.length )
       return -1;
 
@@ -551,20 +559,24 @@ String _hx_std_sys_file_type( String path )
 **/
 bool _hx_std_sys_create_dir( String path, int mode )
 {
-   #ifdef EPPC
+#if defined(EPPC)
    return true;
-   #else
-#ifdef NEKO_WINDOWS
-   const wchar_t * wpath = path.__WCStr();
-   hx::EnterGCFreeZone();
-   bool err = _wmkdir(wpath);
 #else
-   hx::EnterGCFreeZone();
-   bool err = mkdir(path.__s,mode);
-#endif
+   #ifdef NEKO_WINDOWS
+      const wchar_t * wpath = path.__WCStr();
+      hx::EnterGCFreeZone();
+      bool err = _wmkdir(wpath);
+   #elif defined(HX_PSVITA)
+      hx::EnterGCFreeZone();
+      bool err = sceIoMkdir(path.__s, SCE_S_IFDIR) == 0;
+   #else
+      hx::EnterGCFreeZone();
+      bool err = mkdir(path.__s,mode);
+   #endif
+   
    hx::ExitGCFreeZone();
    return !err;
-   #endif
+#endif
 }
 
 /**
@@ -573,9 +585,9 @@ bool _hx_std_sys_create_dir( String path, int mode )
 **/
 void _hx_std_sys_remove_dir( String path )
 {
-   #ifdef EPPC
-   return true;
-   #else
+#if defined(HX_PSVITA)
+   
+#elif !defined(EPPC)
    hx::EnterGCFreeZone();
 
    bool ok = false;
@@ -596,7 +608,7 @@ void _hx_std_sys_remove_dir( String path )
    hx::ExitGCFreeZone();
    if (!ok)
       hx::Throw(HX_CSTRING("Could not remove directory"));
-   #endif
+#endif
 }
 
 /**
@@ -742,7 +754,7 @@ Array<String> _hx_std_sys_read_dir( String p )
 **/
 String _hx_std_file_full_path( String path )
 {
-#if defined(HX_WINRT)
+#if defined(HX_WINRT) || defined(HX_PSVITA)
    return path;
 #elif defined(NEKO_WINDOWS)
    wchar_t buf[MAX_PATH+1];
@@ -782,7 +794,7 @@ String _hx_std_sys_exe_path()
    if( _NSGetExecutablePath(path, &path_len) )
       return null();
    return String::create(path);
-#elif defined(EPPC)
+#elif defined(EPPC) || defined(HX_PSVITA)
    return HX_CSTRING("");
 #else
    {
@@ -819,7 +831,7 @@ extern char **environ;
 Array<String> _hx_std_sys_env()
 {
    Array<String> result = Array_obj<String>::__new();
-   #ifndef HX_WINRT
+#if !defined(HX_WINRT) && !defined(HX_PSVITA)
    char **e = environ;
    while( *e )
    {
@@ -833,7 +845,7 @@ Array<String> _hx_std_sys_env()
       result->push(String::create(x+1));
       e++;
    }
-   #endif
+#endif
    return result;
 }
 
@@ -860,7 +872,7 @@ Array<String> _hx_std_sys_env()
 **/
 int _hx_std_sys_getch( bool b )
 {
-#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC)
+#if defined(HX_WINRT) || defined(EMSCRIPTEN) || defined(EPPC) || defined(HX_PSVITA)
    return 0;
 #elif defined(NEKO_WINDOWS)
    hx::EnterGCFreeZone();

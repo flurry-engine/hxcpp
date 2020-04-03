@@ -1,4 +1,4 @@
-#if !defined(HX_WINRT) && !defined(EPPC)
+#if !defined(HX_WINRT) && !defined(EPPC) && !defined(HX_PSVITA)
 #include <hxcpp.h>
 #include <hx/OS.h>
 

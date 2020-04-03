@@ -1,7 +1,7 @@
 #include <hxcpp.h>
 #include <hx/OS.h>
 
-#if !defined(HX_WINRT) && !defined(EPPC)
+#if !defined(HX_WINRT) && !defined(EPPC) && !defined(HX_PSVITA)
 
 #ifdef NEKO_WINDOWS
 #   include <windows.h>
@@ -189,10 +189,9 @@ static String quoteString(String v)
 **/
 Dynamic _hx_std_process_run( String cmd, Array<String> vargs, int inShowParam )
 {
-   #if defined(APPLETV) || defined(HX_APPLEWATCH)
+#if defined(APPLETV) || defined(HX_APPLEWATCH)
    return null();
-
-   #else
+#else
    vprocess *p = 0;
    bool isRaw = !vargs.mPtr;
 
@@ -330,7 +329,7 @@ Dynamic _hx_std_process_run( String cmd, Array<String> vargs, int inShowParam )
 
    return p;
 
-   #endif // not APPLETV/HX_APPLEWATCH
+#endif // not APPLETV/HX_APPLEWATCH
 }
 
 

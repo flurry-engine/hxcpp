@@ -22,6 +22,9 @@ typedef int64_t __int64;
 #ifdef TIZEN
 #include <dlog.h>
 #endif
+#ifdef HX_PSVITA
+#include <psp2/kernel/processmgr.h>
+#endif
 #if defined(BLACKBERRY) || defined(GCW0)
 #include <unistd.h>
 #endif
@@ -328,6 +331,15 @@ double  __time_stamp()
          return (now-t0)*period;
    }
    return (double)clock() / ( (double)CLOCKS_PER_SEC);
+#elif defined(HX_PSVITA)
+   SceKernelSysClock clock;
+
+   if (sceKernelGetProcessTime(&clock) == 0)
+   {
+      return clock / 1000 / 1000;
+   }
+
+   throw Dynamic("Could not get time");
 #elif defined(__unix__) || defined(__APPLE__)
    static double t0 = 0;
    struct timeval tv;
@@ -521,7 +533,7 @@ Array<String> __get_args()
       return result;
    }
 
-   #ifdef HX_WINRT
+   #if defined(HX_WINRT) || defined(HX_PSVITA)
    // Do nothing
    #elif defined(HX_WINDOWS)
    LPTSTR str =  GetCommandLine();
