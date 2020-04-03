@@ -1831,7 +1831,6 @@ class BuildTool
          defines.set("apple","apple");
          defines.set("BINDIR","watchsimulator");
       }
-
       else if (defines.exists("android"))
       {
          defines.set("toolchain","android");
@@ -1897,6 +1896,13 @@ class BuildTool
          defines.set("cygwin","cygwin");
          defines.set("linux","linux");
          defines.set("BINDIR",m64 ? "Cygwin64":"Cygwin");
+      }
+      else if (defines.exists("psvita"))
+      {
+         defines.set("toolchain", "psvita");
+         defines.set("psvita", "psvita");
+         defines.set("BINDIR", "PSVita");
+         defines.set("HXCPP_ARMV7","1");
       }
       else if ( (new EReg("window","i")).match(os) )
       {
