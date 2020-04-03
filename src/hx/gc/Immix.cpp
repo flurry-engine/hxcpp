@@ -560,17 +560,16 @@ typedef HxMutex ThreadPoolLock;
 
 static ThreadPoolLock sThreadPoolLock;
 
-// #if !defined(HX_WINDOWS) && !defined(EMSCRIPTEN) && \
-//    !defined(__SNC__) && !defined(__ORBIS__)
-// #define HX_GC_PTHREADS
-// typedef pthread_cond_t ThreadPoolSignal;
-// inline void WaitThreadLocked(ThreadPoolSignal &ioSignal)
-// {
-//    pthread_cond_wait(&ioSignal, &sThreadPoolLock.mMutex);
-// }
-// #else
+#if !defined(HX_WINDOWS) && !defined(EMSCRIPTEN) && !defined(__SNC__) && !defined(__ORBIS__) && !defined(HX_PSVITA)
+#define HX_GC_PTHREADS
+typedef pthread_cond_t ThreadPoolSignal;
+inline void WaitThreadLocked(ThreadPoolSignal &ioSignal)
+{
+   pthread_cond_wait(&ioSignal, &sThreadPoolLock.mMutex);
+}
+#else
 typedef HxSemaphore ThreadPoolSignal;
-// #endif
+#endif
 
 typedef TAutoLock<ThreadPoolLock> ThreadPoolAutoLock;
 
@@ -4365,20 +4364,20 @@ public:
    {
       void *info = (void *)(size_t)inId;
 
-      #ifdef HX_GC_PTHREADS
-         pthread_cond_init(&sThreadWake[inId],0);
-         sThreadSleeping[inId] = false;
-         if (inId==0)
-            pthread_cond_init(&sThreadJobDone,0);
+#ifdef HX_GC_PTHREADS
+      pthread_cond_init(&sThreadWake[inId],0);
+      sThreadSleeping[inId] = false;
+      if (inId==0)
+         pthread_cond_init(&sThreadJobDone,0);
 
-         pthread_t result = 0;
-         int created = pthread_create(&result,0,SThreadLoop,info);
-         bool ok = created==0;
-      #elif defined(EMSCRIPTEN)
-         // Only one thread
-      #else
-         bool ok = HxCreateDetachedThread(SThreadLoop, info);
-      #endif
+      pthread_t result = 0;
+      int created = pthread_create(&result,0,SThreadLoop,info);
+      bool ok = created==0;
+#elif defined(EMSCRIPTEN)
+      // Only one thread
+#else
+      bool ok = HxCreateDetachedThread(SThreadLoop, info);
+#endif
    }
 
    void StopThreadJobs(bool inKill)

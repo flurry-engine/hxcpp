@@ -24,11 +24,18 @@
 
 #include <windows.h>
 #include <process.h>
+
+#elif defined(HX_PSVITA)
+
+#include <psp2/kernel/threadmgr.h> 
+
 #else
+
 #include <errno.h>
 #include <pthread.h>
 #include <sys/time.h>
 #include <stdio.h>
+
 #endif
 
 #ifdef RegisterClass
@@ -92,7 +99,7 @@ inline int HxAtomicDec(volatile int *ioWhere)
    { return OSAtomicDecrement32Barrier(ioWhere)+1; }
 
 
-#elif defined(HX_LINUX)
+#elif defined(HX_LINUX) || defined (HX_PSVITA)
 
 #define HX_HAS_ATOMIC 1
 
@@ -185,6 +192,50 @@ inline bool HxCreateDetachedThread(DWORD (WINAPI *func)(void *), void *param)
 	return (CreateThread(NULL, 0, func, param, 0, 0) != 0);
 }
 
+// #elif defined(HX_PSVITA)
+
+// struct HxMutex
+// {
+//    int mCount;
+//    SceUID mID;
+
+//    HxMutex()
+//    {
+//       mID = sceKernelCreateMutex("HxMutex", SCE_KERNEL_MUTEX_ATTR_RECURSIVE, 0, nullptr);
+//    }
+//    ~HxMutex()
+//    {
+//       sceKernelDeleteMutex(mID);
+//    }
+//    void Lock()
+//    {
+//       sceKernelLockMutex(mID, 1, nullptr);
+//    }
+//    bool TryLock()
+//    {
+//       return sceKernelTryLockMutex(mID, 1) >= 0;
+//    }
+//    void Unlock()
+//    {
+//       sceKernelUnlockMutex(mID, 1);
+//    }
+//    void Clean()
+//    {
+//       sceKernelCancelMutex(mID, 0, nullptr);
+//    }
+// };
+
+// #define THREAD_FUNC_TYPE int
+// #define THREAD_FUNC_RET return 0;
+
+// inline bool HxCreateDetachedThread(int (*func)(SceSize, void*), void* argp)
+// {
+//    SceUID thid = sceKernelCreateThread("HxThread", func, 0x10000100, 0x10000, 0, 0, nullptr);
+//    sceKernelStartThread(thid, 4, argp);
+
+//    return true;
+// }
+
 #else
 
 struct HxMutex
@@ -234,22 +285,30 @@ inline bool HxCreateDetachedThread(void *(*func)(void *), void *param)
 
 #endif
 
-
-
-
 template<typename LOCKABLE>
 struct TAutoLock
 {
-   TAutoLock(LOCKABLE &inMutex) : mMutex(inMutex) { mMutex.Lock(); }
-   ~TAutoLock() { mMutex.Unlock(); }
-   void Lock() { mMutex.Lock(); }
-   void Unlock() { mMutex.Unlock(); }
-
    LOCKABLE &mMutex;
+
+   TAutoLock(LOCKABLE &inMutex) : mMutex(inMutex)
+   {
+      mMutex.Lock();
+   }
+   ~TAutoLock()
+   {
+      mMutex.Unlock();
+   }
+   void Lock()
+   {
+      mMutex.Lock();
+   }
+   void Unlock()
+   {
+      mMutex.Unlock();
+   }
 };
 
 typedef TAutoLock<HxMutex> AutoLock;
-
 
 #if defined(HX_WINDOWS)
 
@@ -286,6 +345,49 @@ struct HxSemaphore
    void Clean() { if (mSemaphore) CloseHandle(mSemaphore); mSemaphore = 0; }
 
    HANDLE mSemaphore;
+};
+
+#elif defined(HX_PSVITA)
+
+struct HxSemaphore
+{
+   SceUID mSema;
+
+   HxSemaphore()
+   {
+      mSema = sceKernelCreateSema("HxSemaphore", 0, 0, 1, nullptr);
+   }
+   ~HxSemaphore()
+   {
+      sceKernelDeleteSema(mSema);
+   }
+
+   void Set()
+   {
+      sceKernelSignalSema(mSema, 1);
+   }
+
+   void Wait()
+   {
+      sceKernelWaitSema(mSema, 1, nullptr);
+   }
+
+   bool WaitSeconds(double inSeconds)
+   {
+      uint waitFor = (uint)(inSeconds * 1000 * 1000);
+
+      return sceKernelWaitSema(mSema, 1, nullptr);
+   }
+
+   void Reset()
+   {
+      sceKernelCancelSema(mSema, 0, nullptr);
+   }
+
+   void Clean()
+   {
+      sceKernelCancelSema(mSema, 0, nullptr);
+   }
 };
 
 #else
@@ -408,18 +510,25 @@ struct HxSemaphore
 #endif
 
 
-#if defined HX_WINRT
+#if defined(HX_WINRT)
 
 inline void HxSleep(unsigned int ms)
 {
 	::Sleep(ms);
 }
 
-#elif defined HX_WINDOWS
+#elif defined(HX_WINDOWS)
 
 inline void HxSleep(unsigned int ms)
 {
 	::Sleep(ms);
+}
+
+#elif defined(HX_PSVITA)
+
+inline void HxSleep(unsigned int ms)
+{
+   sceKernelDelayThread(ms * 1000);
 }
 
 #else
@@ -430,7 +539,7 @@ inline void HxSleep(unsigned int ms)
    struct timespec tmp;
    t.tv_sec = 0;
    t.tv_nsec = ms * 1000000;
-   // nanosleep(&t, &tmp);
+   nanosleep(&t, &tmp);
 }
 
 #endif

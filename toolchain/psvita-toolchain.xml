@@ -4,6 +4,7 @@
     <include name="toolchain/gcc-toolchain.xml"/>
 
     <target id="haxe">
+        <lib name="-lpthread"/>
         <lib name="-lSceCtrl_stub"/>
     </target>
 

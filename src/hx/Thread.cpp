@@ -224,8 +224,7 @@ public:
 	Deque   *mDeque;
 };
 
-
-THREAD_FUNC_TYPE hxThreadFunc( void *inInfo )
+THREAD_FUNC_TYPE hxThreadFunc(void *inInfo)
 {
    // info[1] will the the "top of stack" - values under this
    //  (ie info[0] and other stack values) will be in the GC conservative range
@@ -446,6 +445,11 @@ public:
 	double Now()
 	{
 		return (double)clock()/CLOCKS_PER_SEC;
+	}
+	#elif defined(HX_PSVITA)
+	double Now()
+	{
+		return sceKernelGetSystemTimeWide();
 	}
 	#else
 	double Now()
