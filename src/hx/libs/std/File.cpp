@@ -10,9 +10,13 @@
 #endif
 
 #ifdef HX_PSVITA
-#   include <psp2/io/stat.h>
-#   include <psp2/io/fcntl.h>
-#   include <psp2/kernel/clib.h>
+#include <psp2/io/stat.h>
+#include <psp2/io/fcntl.h>
+#include <psp2/kernel/clib.h>
+
+typedef SceUID FILEID;
+#else
+typedef FILE* FILEID;
 #endif
 
 /**
@@ -32,10 +36,10 @@ struct fio : public hx::Object
    HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdFio };
 
    String name;
-   FILE   *io;
+   FILEID io;
    bool   closeIo;
 
-   void create(FILE *inFile, String inName, bool inClose)
+   void create(FILEID inFile, String inName, bool inClose)
    {
       name = inName;
       HX_OBJ_WB_GET(this,name.raw_ref());
@@ -48,7 +52,14 @@ struct fio : public hx::Object
    void destroy(bool inForceClose = false)
    {
       if (io && (inForceClose || closeIo))
+      {
+   #ifdef HX_PSVITA
+         sceIoClose(io);
+   #else
          fclose(io);
+   #endif
+      }
+         
       io = 0;
       name = String();
    }
@@ -96,7 +107,22 @@ static void file_error(const char *msg, String inName)
 **/
 Dynamic _hx_std_file_open( String fname, String r )
 {
-   FILE *file = 0;
+#ifdef HX_PSVITA
+   hx::strbuf src;
+
+   hx::EnterGCFreeZone();
+   FILEID fd = sceIoOpen(fname.utf8_str(&src), SCE_O_RDWR, 0777);
+   if (fd < 0) {
+      file_error("file_open", fname);
+   }
+   hx::ExitGCFreeZone();
+
+   fio *f = new fio;
+   f->create(fd, fname, true);
+
+   return f;
+#else
+   FILEID file = 0;
 
    hx::strbuf buf0;
    hx::strbuf buf1;
@@ -116,6 +142,7 @@ Dynamic _hx_std_file_open( String fname, String r )
    fio *f = new fio;
    f->create(file,fname,true);
    return f;
+#endif
 }
 
 /**
@@ -151,9 +178,17 @@ int _hx_std_file_write( Dynamic handle, Array<unsigned char> s, int p, int n )
 
    int buflen = s->length;
    int len = n;
-   if( p < 0 || len < 0 || p > buflen || p + len > buflen )
+   if (p < 0 || len < 0 || p > buflen || p + len > buflen)
+   {
       return 0;
+   }
 
+   hx::EnterGCFreeZone();
+#ifdef HX_PSVITA
+   if (sceIoWrite(f->io, &s[p], len) != len) {
+      file_error("file_write", f->name);
+   };
+#else
    hx::EnterGCFreeZone();
    while( len > 0 )
    {
@@ -167,6 +202,7 @@ int _hx_std_file_write( Dynamic handle, Array<unsigned char> s, int p, int n )
       p += d;
       len -= d;
    }
+#endif
    hx::ExitGCFreeZone();
    return n;
 }
@@ -184,12 +220,19 @@ int _hx_std_file_read( Dynamic handle, Array<unsigned char> buf, int p, int n )
 
    int buf_len = buf->length;
    int len = n;
-   if( p < 0 || len < 0 || p > buf_len || p + len > buf_len )
+   if (p < 0 || len < 0 || p > buf_len || p + len > buf_len)
+   {
       return 0;
+   }
 
    hx::EnterGCFreeZone();
    // Attempt to increase the chances of pinning on the stack...
    unsigned char *bufPtr = &buf[0];
+#ifdef HX_PSVITA
+   if (sceIoRead(f->io, bufPtr + p, len) != len) {
+      file_error("file_read", f->name);
+   }
+#else
    while( len > 0 )
    {
       POSIX_LABEL(file_read_again);
@@ -206,6 +249,8 @@ int _hx_std_file_read( Dynamic handle, Array<unsigned char> buf, int p, int n )
       p += d;
       len -= d;
    }
+#endif
+
    hx::ExitGCFreeZone();
    return n;
 }
@@ -222,12 +267,19 @@ void _hx_std_file_write_char( Dynamic handle, int c )
    char cc = (char)c;
 
    hx::EnterGCFreeZone();
+#ifdef HX_PSVITA
+   if (sceIoWrite(f->io, &cc, 1) != 1)
+   {
+      file_error("file_write_char", f->name);
+   }
+#else
    POSIX_LABEL(write_char_again);
    if( fwrite(&cc,1,1,f->io) != 1 )
    {
       HANDLE_FINTR(f->io,write_char_again);
       file_error("file_write_char",f->name);
    }
+#endif
    hx::ExitGCFreeZone();
 }
 
@@ -241,12 +293,19 @@ int _hx_std_file_read_char( Dynamic handle )
 
    unsigned char cc = 0;
    hx::EnterGCFreeZone();
+#ifdef HX_PSVITA
+   if (sceIoRead(f->io, &cc, 1) != 0)
+   {
+      file_error("file_read_char",f->name);
+   }
+#else
    POSIX_LABEL(read_char_again);
    if( fread(&cc,1,1,f->io) != 1 )
    {
       HANDLE_FINTR(f->io,read_char_again);
       file_error("file_read_char",f->name);
    }
+#endif
    hx::ExitGCFreeZone();
    return cc;
 }
@@ -259,8 +318,15 @@ void _hx_std_file_seek( Dynamic handle, int pos, int kind )
 {
    fio *f = getFio(handle);
    hx::EnterGCFreeZone();
+#if HX_PSVITA
+   if (sceIoLseek(f->io, pos, SCE_SEEK_SET) != pos)
+   {
+      file_error("file_seek",f->name);
+   }
+#else
    if( fseek(f->io,pos,kind) != 0 )
       file_error("file_seek",f->name);
+#endif
    hx::ExitGCFreeZone();
 }
 
@@ -270,6 +336,9 @@ void _hx_std_file_seek( Dynamic handle, int pos, int kind )
 **/
 int _hx_std_file_tell( Dynamic handle )
 {
+#ifdef HX_PSVITA
+   return 0;
+#else
    fio *f = getFio(handle);
    hx::EnterGCFreeZone();
    int p = ftell(f->io);
@@ -277,6 +346,7 @@ int _hx_std_file_tell( Dynamic handle )
       file_error("file_tell",f->name);
    hx::ExitGCFreeZone();
    return p;
+#endif
 }
 
 /**
@@ -285,8 +355,12 @@ int _hx_std_file_tell( Dynamic handle )
 **/
 bool _hx_std_file_eof( Dynamic handle )
 {
+#ifdef HX_PSVITA
+   return true;
+#else
    fio *f = getFio(handle);
    return feof(f->io);
+#endif
 }
 
 /**
@@ -295,11 +369,13 @@ bool _hx_std_file_eof( Dynamic handle )
 **/
 void _hx_std_file_flush( Dynamic handle )
 {
+#ifndef HX_PSVITA
    fio *f = getFio(handle);
    hx::EnterGCFreeZone();
    if( fflush( f->io ) != 0 )
       file_error("file_flush",f->name);
    hx::ExitGCFreeZone();
+#endif
 }
 
 /**
@@ -308,6 +384,27 @@ void _hx_std_file_flush( Dynamic handle )
 **/
 String _hx_std_file_contents_string( String name )
 {
+#ifdef HX_PSVITA
+   hx::EnterGCFreeZone();
+
+   SceIoStat stat;
+   sceIoGetstat(name.__s, &stat);
+
+   char buffer [stat.st_size];
+
+   SceUID fd = sceIoOpen(name.__s, SCE_O_RDONLY, 0777);
+   if (fd < 0)
+   {
+      file_error("file_contents", name);
+   }
+
+   sceIoRead(fd, buffer, stat.st_size);
+   sceIoClose(fd);
+
+   hx::ExitGCFreeZone();
+
+   return String::create(buffer, stat.st_size);
+#else
    std::vector<char> buffer;
 
    hx::strbuf buf;
@@ -352,6 +449,7 @@ String _hx_std_file_contents_string( String name )
    hx::ExitGCFreeZone();
 
    return String::create(&buffer[0], buffer.size());
+#endif
 }
 
 
@@ -439,23 +537,35 @@ Array<unsigned char> _hx_std_file_contents_bytes( String name )
 
 Dynamic _hx_std_file_stdin()
 {
+#ifdef HX_PSVITA
+   hx::Throw("not implemented");
+#else
    fio *f = new fio();
    f->create(stdin, HX_CSTRING("stdin"), false);
    return f;
+#endif
 }
 
 
 Dynamic _hx_std_file_stdout()
 {
+#ifdef HX_PSVITA
+   hx::Throw("not implemented");
+#else
    fio *f = new fio();
    f->create(stdout, HX_CSTRING("stdout"), false);
    return f;
+#endif
 }
 
 Dynamic _hx_std_file_stderr()
 {
+#ifdef HX_PSVITA
+   hx::Throw("not implemented");
+#else
    fio *f = new fio();
    f->create(stderr, HX_CSTRING("stderr"), false);
    return f;
+#endif
 }
 
