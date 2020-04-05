@@ -5,7 +5,16 @@
 
     <target id="haxe">
         <lib name="-lpthread"/>
+        <lib name="-lvita2d"/>
         <lib name="-lSceCtrl_stub"/>
+        <lib name="-lSceDisplay_stub"/>
+        <lib name="-lSceGxm_stub"/>
+        <lib name="-lSceSysmodule_stub"/>
+        <lib name="-lScePgf_stub"/>
+        <lib name="-lScePvf_stub"/>
+        <lib name="-lSceCommonDialog_stub"/>
+        <lib name="-lfreetype"/>
+        <lib name="-lpng"/>
     </target>
 
     <compiler id="psvita" exe="arm-vita-eabi-g++">

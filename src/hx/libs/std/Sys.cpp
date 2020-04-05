@@ -559,9 +559,13 @@ String _hx_std_sys_file_type( String path )
 **/
 bool _hx_std_sys_create_dir( String path, int mode )
 {
-#if defined(EPPC)
-   return true;
-#else
+#if defined(HX_PSVITA)
+   hx::EnterGCFreeZone();
+   bool res = sceIoMkdir(path.__s, SCE_S_IFDIR) == 0;
+   hx::ExitGCFreeZone();
+
+   return res;
+#elif !defined(EPPC)
    #ifdef NEKO_WINDOWS
       const wchar_t * wpath = path.__WCStr();
       hx::EnterGCFreeZone();
@@ -586,7 +590,9 @@ bool _hx_std_sys_create_dir( String path, int mode )
 void _hx_std_sys_remove_dir( String path )
 {
 #if defined(HX_PSVITA)
-   
+   hx::EnterGCFreeZone();
+   sceIoRmdir(path.__s);
+   hx::ExitGCFreeZone();
 #elif !defined(EPPC)
    hx::EnterGCFreeZone();
 

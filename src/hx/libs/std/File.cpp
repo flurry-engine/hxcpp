@@ -9,6 +9,12 @@
 #   include <windows.h>
 #endif
 
+#ifdef HX_PSVITA
+#   include <psp2/io/stat.h>
+#   include <psp2/io/fcntl.h>
+#   include <psp2/kernel/clib.h>
+#endif
+
 /**
    <doc>
    <h1>File</h1>
@@ -94,9 +100,11 @@ Dynamic _hx_std_file_open( String fname, String r )
 
    hx::strbuf buf0;
    hx::strbuf buf1;
-#ifdef NEKO_WINDOWS
+#if defined(NEKO_WINDOWS)
    hx::EnterGCFreeZone();
    file = _wfopen(fname.wchar_str(&buf0),r.wchar_str(&buf1));
+#elif defined(HX_PSVITA)
+   //
 #else
    hx::EnterGCFreeZone();
    file = fopen(fname.utf8_str(&buf0),r.utf8_str(&buf1));
@@ -354,6 +362,33 @@ String _hx_std_file_contents_string( String name )
 **/
 Array<unsigned char> _hx_std_file_contents_bytes( String name )
 {
+#ifdef HX_PSVITA
+   hx::EnterGCFreeZone();
+
+   SceIoStat stat;
+   sceIoGetstat(name.__s, &stat);
+
+   unsigned char buffer [stat.st_size];
+
+   SceUID fd = sceIoOpen(name.__s, SCE_O_RDONLY, 0777);
+   if (fd < 0)
+   {
+      file_error("file_contents", name);
+   }
+
+   sceIoRead(fd, buffer, stat.st_size);
+   sceIoClose(fd);
+
+   hx::ExitGCFreeZone();
+
+   auto out = Array_obj<unsigned char>::__new(stat.st_size, stat.st_size);
+
+   hx::EnterGCFreeZone();
+   sceClibMemcpy(&out[0], buffer, stat.st_size);
+   hx::ExitGCFreeZone();
+
+   return out;
+#elif
    hx::strbuf buf;
 #ifdef NEKO_WINDOWS
    hx::EnterGCFreeZone();
@@ -372,7 +407,6 @@ Array<unsigned char> _hx_std_file_contents_bytes( String name )
 
    fseek(file,0,SEEK_SET);
    hx::ExitGCFreeZone();
-
    Array<unsigned char> buffer = Array_obj<unsigned char>::__new(len,len);
    hx::EnterGCFreeZone();
    if (len)
@@ -398,6 +432,7 @@ Array<unsigned char> _hx_std_file_contents_bytes( String name )
    fclose(file);
    hx::ExitGCFreeZone();
    return buffer;
+#endif
 }
 
 
