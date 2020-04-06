@@ -58,6 +58,12 @@
  #include <sys/wait.h>
 #endif
 
+#ifdef HX_PSVITA
+   #include <psp2/kernel/threadmgr.h>
+   #include <psp2/kernel/processmgr.h>
+   #include <psp2/io/fcntl.h>
+#endif
+
 #ifndef CLK_TCK
    #define CLK_TCK   100
 #endif
@@ -79,7 +85,7 @@
 
 String _hx_std_get_env( String v )
 {
-   #ifdef HX_WINRT
+   #if defined(HX_WINRT) || defined(HX_PSVITA)
       return String();
    #else
       #if defined(NEKO_WINDOWS) && defined(HX_SMART_STRINGS)
@@ -127,7 +133,7 @@ void _hx_std_sys_sleep( double f )
 #elif defined(EPPC)
    //TODO: Implement sys_sleep for EPPC
 #elif defined(HX_PSVITA)
-   //
+   sceKernelDelayThread(f * 1000 * 1000);
 #else
    {
       struct timespec t;
@@ -192,7 +198,7 @@ String _hx_std_get_cwd()
 #if defined(HX_WINRT)
    return HX_CSTRING("ms-appdata:///local/");
 #elif defined(HX_PSVITA)
-   return HX_CSTRING("app0://");
+   return HX_CSTRING("app0:");
 #elif defined(EPPC)
    return String();
    #else
@@ -342,7 +348,11 @@ int _hx_std_sys_command( String cmd )
 **/
 void _hx_std_sys_exit( int code )
 {
+#ifdef HX_PSVITA
+   sceKernelExitProcess(code);
+#else
    exit(code);
+#endif
 }
 
 /**
@@ -351,14 +361,19 @@ void _hx_std_sys_exit( int code )
 **/
 bool _hx_std_sys_exists( String path )
 {
-   #ifdef EPPC
-   return true;
-   #else
-   
-#ifdef NEKO_WINDOWS
+#if defined(EPPC)
+   hx::EnterGCFreeZone();
+   bool result = true;  
+#elif defined(NEKO_WINDOWS)
    const wchar_t * wpath = path.__WCStr();
    hx::EnterGCFreeZone();
    bool result = GetFileAttributesW(wpath) != INVALID_FILE_ATTRIBUTES;
+#elif defined(HX_PSVITA)
+   hx::strbuf buf;
+   hx::EnterGCFreeZone();
+
+   SceIoStat stat;
+   bool result = sceIoGetstat(path.utf8_str(&buf), &stat) >= 0;
 #else
    struct stat st;
    hx::EnterGCFreeZone();
@@ -367,7 +382,6 @@ bool _hx_std_sys_exists( String path )
    hx::ExitGCFreeZone();
    
    return result;
-   #endif
 }
 
 /**
@@ -376,7 +390,7 @@ bool _hx_std_sys_exists( String path )
 **/
 void _hx_std_file_delete( String path )
 {
-   #ifndef EPPC
+#ifndef EPPC
    hx::EnterGCFreeZone();
 
    bool err = false;
@@ -387,14 +401,18 @@ void _hx_std_file_delete( String path )
    #endif
    {
       hx::strbuf buf;
+      #ifdef HX_PSVITA
+      err = sceIoRemove(path.utf8_str(&buf)) < 0;
+      #else
       err = unlink(path.utf8_str(&buf));
+      #endif
    }
 
    hx::ExitGCFreeZone();
 
    if (err)
       hx::Throw( HX_CSTRING("Could not delete ") + path );
-   #endif
+#endif
 }
 
 /**
@@ -407,8 +425,10 @@ void  _hx_std_sys_rename( String path, String newname )
 
    hx::strbuf buf0;
    hx::strbuf buf1;
-   #ifdef NEKO_WINDOWS
+   #if defined(NEKO_WINDOWS)
    bool err = _wrename(path.wchar_str(&buf0),newname.wchar_str(&buf1));
+   #elif defined(HX_PSVITA)
+   bool err = sceIoRename(path.utf8_str(&buf0),newname.utf8_str(&buf1)) < 0;
    #else
    bool err = rename(path.utf8_str(&buf0),newname.utf8_str(&buf1));
    #endif
@@ -439,9 +459,30 @@ void  _hx_std_sys_rename( String path, String newname )
 **/
 Dynamic _hx_std_sys_stat( String path )
 {
-   #ifdef EPPC
+#if defined(EPPC)
    return alloc_null();
-   #else
+#elif defined(HX_PSVITA)
+   hx::strbuf buf;
+   hx::EnterGCFreeZone();
+
+   SceIoStat stat;
+   if (sceIoGetstat(path.utf8_str(&buf), &stat) < 0)
+   {
+      return null();
+   }
+
+   hx::ExitGCFreeZone();
+   hx::Anon o = hx::Anon_obj::Create();
+   o->Add("st_atime"  , __hxcpp_new_date(stat.st_atime.year, stat.st_atime.month, stat.st_atime.day, stat.st_atime.hour, stat.st_atime.minute, stat.st_atime.second, stat.st_atime.microsecond));
+   o->Add("st_attr"   , stat.st_attr);
+   o->Add("st_ctime"  , __hxcpp_new_date(stat.st_ctime.year, stat.st_ctime.month, stat.st_ctime.day, stat.st_ctime.hour, stat.st_ctime.minute, stat.st_ctime.second, stat.st_ctime.microsecond));
+   o->Add("st_mode"   , stat.st_mode);
+   o->Add("st_mtime"  , __hxcpp_new_date(stat.st_mtime.year, stat.st_mtime.month, stat.st_mtime.day, stat.st_mtime.hour, stat.st_mtime.minute, stat.st_mtime.second, stat.st_mtime.microsecond));
+   o->Add("st_private", stat.st_private);
+   o->Add("st_size"   , stat.st_size);
+
+   return 0;
+#else
    hx::EnterGCFreeZone();
    bool err = false;
    #if defined(NEKO_WINDOWS)
@@ -483,7 +524,7 @@ Dynamic _hx_std_sys_stat( String path )
    STATF(mode);
 
    return o;
-   #endif
+#endif
 }
 
 /**
