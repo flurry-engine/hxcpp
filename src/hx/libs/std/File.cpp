@@ -41,6 +41,7 @@ struct fio : public hx::Object
 #ifdef HX_PSVITA
    // sceIo steams do not expose a way to get the position of the stream
    long   seekPos;
+   // sceIo stream do not expose a way to check eof, so we stat the file on opening and store the byte length
    long   fileSize;
 #endif
 
@@ -118,9 +119,8 @@ Dynamic _hx_std_file_open( String fname, String r )
    hx::strbuf src;
 
    hx::EnterGCFreeZone();
-   auto name = fname.utf8_str(&src);
 
-   FILEID fd = sceIoOpen(name, SCE_O_RDWR, 0777);
+   FILEID fd = sceIoOpen(fname.utf8_str(&src), SCE_O_RDWR | SCE_O_CREAT, 0777);
    if (fd < 0)
    {
       file_error("file_open", fname);
@@ -202,18 +202,19 @@ int _hx_std_file_write( Dynamic handle, Array<unsigned char> s, int p, int n )
    }
 
    hx::EnterGCFreeZone();
-#ifdef HX_PSVITA
-   int written = sceIoWrite(f->io, &s[p], len);
-   if (written != len)
-   {
-      file_error("file_write", f->name);
-   }
-
-   f->seekPos += written;
-#else
-   hx::EnterGCFreeZone();
    while( len > 0 )
    {
+#ifdef HX_PSVITA
+      int d = sceIoWrite(f->io, &s[p], 1);
+      if (d <= 0)
+      {
+         file_error("file_write", f->name);
+      }
+
+      p   += d;
+      len -= d;
+      f->seekPos += d;
+#else
       POSIX_LABEL(file_write_again);
       int d = (int)fwrite(&s[p],1,len,f->io);
       if( d <= 0 )
@@ -223,8 +224,8 @@ int _hx_std_file_write( Dynamic handle, Array<unsigned char> s, int p, int n )
       }
       p += d;
       len -= d;
-   }
 #endif
+   }
    hx::ExitGCFreeZone();
    return n;
 }
@@ -386,9 +387,9 @@ int _hx_std_file_tell( Dynamic handle )
    int p = f->seekPos;
 #else
    int p = ftell(f->io);
+#endif
    if( p == -1 )
       file_error("file_tell",f->name);
-#endif
    hx::ExitGCFreeZone();
    return p;
 }
@@ -399,11 +400,10 @@ int _hx_std_file_tell( Dynamic handle )
 **/
 bool _hx_std_file_eof( Dynamic handle )
 {
-#ifdef HX_PSVITA
    fio *f = getFio(handle);
+#ifdef HX_PSVITA
    return f->seekPos >= f->fileSize;
 #else
-   fio *f = getFio(handle);
    return feof(f->io);
 #endif
 }
