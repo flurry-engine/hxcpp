@@ -38,13 +38,20 @@ struct fio : public hx::Object
    String name;
    FILEID io;
    bool   closeIo;
+#ifdef HX_PSVITA
+   // sceIo steams do not expose a way to get the position of the stream
+   long   seekPos;
+   long   fileSize;
+#endif
 
    void create(FILEID inFile, String inName, bool inClose)
    {
-      name = inName;
       HX_OBJ_WB_GET(this,name.raw_ref());
-      io = inFile;
+
+      name    = inName;
+      io      = inFile;
       closeIo = inClose;
+      seekPos = 0;
 
       _hx_set_finalizer(this, finalize);
    }
@@ -53,11 +60,11 @@ struct fio : public hx::Object
    {
       if (io && (inForceClose || closeIo))
       {
-   #ifdef HX_PSVITA
+#ifdef HX_PSVITA
          sceIoClose(io);
-   #else
+#else
          fclose(io);
-   #endif
+#endif
       }
          
       io = 0;
@@ -112,13 +119,22 @@ Dynamic _hx_std_file_open( String fname, String r )
 
    hx::EnterGCFreeZone();
    FILEID fd = sceIoOpen(fname.utf8_str(&src), SCE_O_RDWR, 0777);
-   if (fd < 0) {
+
+   if (fd < 0)
+   {
       file_error("file_open", fname);
    }
+   SceIoStat stat;
+   if (sceIoGetstatByFd(fd, &stat) < 0)
+   {
+      file_error("file_open", fname);
+   }
+
    hx::ExitGCFreeZone();
 
    fio *f = new fio;
    f->create(fd, fname, true);
+   f->fileSize = stat.st_size;
 
    return f;
 #else
@@ -185,9 +201,13 @@ int _hx_std_file_write( Dynamic handle, Array<unsigned char> s, int p, int n )
 
    hx::EnterGCFreeZone();
 #ifdef HX_PSVITA
-   if (sceIoWrite(f->io, &s[p], len) != len) {
+   int written = sceIoWrite(f->io, &s[p], len);
+   if (written != len)
+   {
       file_error("file_write", f->name);
-   };
+   }
+
+   f->seekPos += written;
 #else
    hx::EnterGCFreeZone();
    while( len > 0 )
@@ -229,9 +249,13 @@ int _hx_std_file_read( Dynamic handle, Array<unsigned char> buf, int p, int n )
    // Attempt to increase the chances of pinning on the stack...
    unsigned char *bufPtr = &buf[0];
 #ifdef HX_PSVITA
-   if (sceIoRead(f->io, bufPtr + p, len) != len) {
+   int read = sceIoRead(f->io, bufPtr + p, len);
+   if (read != len)
+   {
       file_error("file_read", f->name);
    }
+
+   f->seekPos += read;
 #else
    while( len > 0 )
    {
@@ -272,6 +296,8 @@ void _hx_std_file_write_char( Dynamic handle, int c )
    {
       file_error("file_write_char", f->name);
    }
+
+   f->seekPos++;
 #else
    POSIX_LABEL(write_char_again);
    if( fwrite(&cc,1,1,f->io) != 1 )
@@ -298,6 +324,8 @@ int _hx_std_file_read_char( Dynamic handle )
    {
       file_error("file_read_char",f->name);
    }
+
+   f->seekPos++;
 #else
    POSIX_LABEL(read_char_again);
    if( fread(&cc,1,1,f->io) != 1 )
@@ -323,6 +351,8 @@ void _hx_std_file_seek( Dynamic handle, int pos, int kind )
    {
       file_error("file_seek",f->name);
    }
+
+   f->seekPos = pos;
 #else
    if( fseek(f->io,pos,kind) != 0 )
       file_error("file_seek",f->name);
@@ -336,17 +366,17 @@ void _hx_std_file_seek( Dynamic handle, int pos, int kind )
 **/
 int _hx_std_file_tell( Dynamic handle )
 {
-#ifdef HX_PSVITA
-   return 0;
-#else
    fio *f = getFio(handle);
    hx::EnterGCFreeZone();
+#ifdef HX_PSVITA
+   int p = f->seekPos;
+#else
    int p = ftell(f->io);
    if( p == -1 )
       file_error("file_tell",f->name);
+#endif
    hx::ExitGCFreeZone();
    return p;
-#endif
 }
 
 /**
@@ -356,7 +386,8 @@ int _hx_std_file_tell( Dynamic handle )
 bool _hx_std_file_eof( Dynamic handle )
 {
 #ifdef HX_PSVITA
-   return true;
+   fio *f = getFio(handle);
+   return f->seekPos >= f->fileSize;
 #else
    fio *f = getFio(handle);
    return feof(f->io);
@@ -385,10 +416,11 @@ void _hx_std_file_flush( Dynamic handle )
 String _hx_std_file_contents_string( String name )
 {
 #ifdef HX_PSVITA
+   hx::strbuf buf;
    hx::EnterGCFreeZone();
 
    SceIoStat stat;
-   sceIoGetstat(name.__s, &stat);
+   sceIoGetstat(name.utf8_str(&buf), &stat);
 
    char buffer [stat.st_size];
 
@@ -461,10 +493,11 @@ String _hx_std_file_contents_string( String name )
 Array<unsigned char> _hx_std_file_contents_bytes( String name )
 {
 #ifdef HX_PSVITA
+   hx::strbuf buf;
    hx::EnterGCFreeZone();
 
    SceIoStat stat;
-   sceIoGetstat(name.__s, &stat);
+   sceIoGetstat(name.utf8_str(&buf), &stat);
 
    unsigned char buffer [stat.st_size];
 
