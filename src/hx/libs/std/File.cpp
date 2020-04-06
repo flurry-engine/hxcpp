@@ -118,12 +118,14 @@ Dynamic _hx_std_file_open( String fname, String r )
    hx::strbuf src;
 
    hx::EnterGCFreeZone();
-   FILEID fd = sceIoOpen(fname.utf8_str(&src), SCE_O_RDWR, 0777);
+   auto name = fname.utf8_str(&src);
 
+   FILEID fd = sceIoOpen(name, SCE_O_RDWR, 0777);
    if (fd < 0)
    {
       file_error("file_open", fname);
    }
+
    SceIoStat stat;
    if (sceIoGetstatByFd(fd, &stat) < 0)
    {
@@ -249,13 +251,26 @@ int _hx_std_file_read( Dynamic handle, Array<unsigned char> buf, int p, int n )
    // Attempt to increase the chances of pinning on the stack...
    unsigned char *bufPtr = &buf[0];
 #ifdef HX_PSVITA
-   int read = sceIoRead(f->io, bufPtr + p, len);
-   if (read != len)
+   while (len > 0)
    {
-      file_error("file_read", f->name);
-   }
+      int d = sceIoRead(f->io, bufPtr + p, 1);
+      if (d <= 0)
+      {
+         int size = n - len;
+         if (size == 0)
+         {
+            file_error("file_read", f->name);
+         }
 
-   f->seekPos += read;
+         hx::ExitGCFreeZone();
+
+         return size;
+      }
+
+      p   += d;
+      len -= d;
+      f->seekPos += d;
+   }
 #else
    while( len > 0 )
    {
@@ -274,7 +289,6 @@ int _hx_std_file_read( Dynamic handle, Array<unsigned char> buf, int p, int n )
       len -= d;
    }
 #endif
-
    hx::ExitGCFreeZone();
    return n;
 }
@@ -320,7 +334,7 @@ int _hx_std_file_read_char( Dynamic handle )
    unsigned char cc = 0;
    hx::EnterGCFreeZone();
 #ifdef HX_PSVITA
-   if (sceIoRead(f->io, &cc, 1) != 0)
+   if (sceIoRead(f->io, &cc, 1) != 1)
    {
       file_error("file_read_char",f->name);
    }
