@@ -52,7 +52,6 @@ struct fio : public hx::Object
       name    = inName;
       io      = inFile;
       closeIo = inClose;
-      seekPos = 0;
 
       _hx_set_finalizer(this, finalize);
    }
@@ -533,7 +532,7 @@ Array<unsigned char> _hx_std_file_contents_bytes( String name )
    hx::ExitGCFreeZone();
 
    return out;
-#elif
+#else
    hx::strbuf buf;
 #ifdef NEKO_WINDOWS
    hx::EnterGCFreeZone();

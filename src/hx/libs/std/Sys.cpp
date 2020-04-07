@@ -1,38 +1,28 @@
 #include <hxcpp.h>
-#include <hx/OS.h>
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <time.h>
-
-#ifndef EPPC
-#include <sys/types.h>
-#include <sys/stat.h>
+#if !defined(EPPC) && !defined(HX_PSVITA)
+   #include <sys/types.h>
+   #include <sys/stat.h>
 #endif
-
-
 
 #ifdef NEKO_WINDOWS
    #include <windows.h>
    #include <direct.h>
    #include <conio.h>
    #include <locale.h>
-#else
+#elif !defined(HX_PSVITA)
    #include <errno.h>
+   #include <limits.h>
    #ifndef EPPC
       #include <unistd.h>
       #include <dirent.h>
       #include <sys/time.h>
       #include <sys/times.h>
-      #ifndef HX_PSVITA
-         #include <termios.h>
-      #endif
+      #include <termios.h>
    #endif
-   #include <limits.h>
-   #ifndef ANDROID
+   #if !defined(ANDROID) && !defined(HX_PSVITA)
       #include <locale.h>
-      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__) && !defined(HX_PSVITA)
+      #if !defined(BLACKBERRY) && !defined(EPPC) && !defined(GCW0) && !defined(__GLIBC__)
          #include <xlocale.h>
       #endif
    #endif
@@ -62,6 +52,15 @@
    #include <psp2/kernel/threadmgr.h>
    #include <psp2/kernel/processmgr.h>
    #include <psp2/io/fcntl.h>
+   #include <psp2/io/dirent.h>
+   #include <psp2/rtc.h>
+#else
+   #include <hx/OS.h>
+
+   #include <stdlib.h>
+   #include <stdio.h>
+   #include <string.h>
+   #include <time.h>
 #endif
 
 #ifndef CLK_TCK
@@ -481,7 +480,7 @@ Dynamic _hx_std_sys_stat( String path )
    o->Add("st_private", stat.st_private);
    o->Add("st_size"   , stat.st_size);
 
-   return 0;
+   return o;
 #else
    hx::EnterGCFreeZone();
    bool err = false;
@@ -546,9 +545,9 @@ String _hx_std_sys_file_type( String path )
 {
    if (path==null())
       return String();
-   #ifdef EPPC
+#ifdef EPPC
    return String();
-   #else
+#else
    hx::EnterGCFreeZone();
    bool err = false;
    #if defined(NEKO_WINDOWS)
@@ -565,6 +564,10 @@ String _hx_std_sys_file_type( String path )
          hx::strbuf buf;
          err = _stat(path.utf8_str(&buf),&s);
       }
+   #elif defined(HX_PSVITA)
+      SceIoStat s;
+      hx::strbuf buf;
+      err = sceIoGetstat(path.utf8_str(&buf), &s) < 0;
    #else
       struct stat s;
       hx::strbuf buf;
@@ -574,13 +577,18 @@ String _hx_std_sys_file_type( String path )
    if (err)
       return String();
 
+#ifdef HX_PSVITA
+   if (s.st_mode & SCE_S_IFREG) return HX_CSTRING("file");
+   if (s.st_mode & SCE_S_IFDIR) return HX_CSTRING("dir");
+   if (s.st_mode & SCE_S_IFLNK) return HX_CSTRING("symlink");
+#else
    if( s.st_mode & S_IFREG )
       return HX_CSTRING("file");
    if( s.st_mode & S_IFDIR )
       return HX_CSTRING("dir");
    if( s.st_mode & S_IFCHR )
       return HX_CSTRING("char");
-#ifndef NEKO_WINDOWS
+   #ifndef NEKO_WINDOWS
    if( s.st_mode & S_IFLNK )
       return HX_CSTRING("symlink");
    if( s.st_mode & S_IFBLK )
@@ -589,9 +597,10 @@ String _hx_std_sys_file_type( String path )
       return HX_CSTRING("fifo");
    if( s.st_mode & S_IFSOCK )
       return HX_CSTRING("sock");
+   #endif
 #endif
    return String();
-   #endif
+#endif
 }
 
 /**
@@ -679,6 +688,15 @@ double _hx_std_sys_time()
    time_t tod;
    time(&tod);
    return ((double)tod);
+#elif defined(HX_PSVITA)
+   hx::EnterGCFreeZone();
+   SceDateTime time;
+   time_t unix_time;
+   sceRtcGetCurrentClockLocalTime(&time);
+   sceRtcGetTime_t(&time, &unix_time);
+   hx::ExitGCFreeZone();
+
+   return unix_time;
 #else
    struct timeval tv;
    if( gettimeofday(&tv,NULL) != 0 )
@@ -703,7 +721,17 @@ double _hx_std_sys_cpu_time()
       return 0;
    return ( ((double)(utime.dwHighDateTime+stime.dwHighDateTime)) * 65.536 * 6.5536 + (((double)utime.dwLowDateTime + (double)stime.dwLowDateTime) / 10000000) );
 #elif defined(EPPC)
-    return ((double)clock()/(double)CLOCKS_PER_SEC);
+   return ((double)clock()/(double)CLOCKS_PER_SEC);
+#elif defined(HX_PSVITA)
+   SceKernelSysClock clock;
+   if (sceKernelGetProcessTime(&clock) >= 0)
+   {
+      return clock;
+   }
+   else
+   {
+      return 0;
+   }
 #else
    struct tms t;
    times(&t);
@@ -767,6 +795,21 @@ Array<String> _hx_std_sys_read_dir( String p )
          break;
    }
    FindClose(handle);
+#elif defined(HX_PSVITA)
+   hx::strbuf buf;
+   hx::EnterGCFreeZone();
+
+   SceUID fd = sceIoDopen(p.utf8_str(&buf));
+
+   SceIoDirent dir;
+   while (sceIoDread(fd, &dir) > 0)
+   {
+      hx::ExitGCFreeZone();
+      result->push(String::create(dir.d_name));
+      hx::EnterGCFreeZone();
+   }
+
+   sceIoDclose(fd);
 #elif !defined(EPPC)
    const char *name = p.__s;
    hx::EnterGCFreeZone();
@@ -943,7 +986,7 @@ int _hx_std_sys_getch( bool b )
    if( b ) fputc(c,stdout);
    hx::ExitGCFreeZone();
    return c;
-#   endif
+#endif
 }
 
 /**
@@ -952,13 +995,15 @@ int _hx_std_sys_getch( bool b )
 **/
 int _hx_std_sys_get_pid()
 {
-#   ifdef NEKO_WINDOWS
+#ifdef NEKO_WINDOWS
    return (int)(GetCurrentProcessId());
 #elif defined(EPPC)
    return (1);
-#   else
+#elif defined(HX_PSVITA)
+   return sceKernelGetProcessId();
+#else
    return (getpid());
-#   endif
+#endif
 }
 
 
