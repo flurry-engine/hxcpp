@@ -27,7 +27,8 @@
 
 #elif defined(HX_PSVITA)
 
-#include <psp2/kernel/threadmgr.h> 
+#include <pthread.h>
+#include <psp2/kernel/threadmgr.h>
 
 #else
 

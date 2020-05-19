@@ -94,7 +94,63 @@
 
 
   #endif
-#else // not HX_WINDOWS
+
+#elif HX_PSVITA
+
+#include <psp2/kernel/clib.h>
+#include <psp2/kernel/threadmgr.h>
+
+extern SceUID tlsSlotLock;
+extern int tlsSlotIndex;
+
+namespace hx
+{
+
+template<typename DATA, bool FAST=false>
+struct TLSData
+{
+   TLSData()
+   {
+      sceKernelLockMutex(tlsSlotLock, 1, nullptr);
+      mSlot = tlsSlotIndex++;
+      sceKernelUnlockMutex(tlsSlotLock, 1);
+
+      DATA** addr = (DATA**)sceKernelGetTLSAddr(mSlot);
+      *addr = 0;
+   }
+   DATA *Get()
+   {
+      DATA** addr = (DATA**)sceKernelGetTLSAddr(mSlot);
+
+      return *addr;
+   }
+   void Set(DATA *inData)
+   {
+      DATA** addr = (DATA**)sceKernelGetTLSAddr(mSlot);
+
+      *addr = inData;
+   }
+   inline operator DATA *()
+   {
+      DATA** addr = (DATA**)sceKernelGetTLSAddr(mSlot);
+
+      return *addr;
+   }
+   inline DATA *operator=(DATA *inData)
+   {
+      DATA** addr = (DATA**)sceKernelGetTLSAddr(mSlot);
+
+      *addr = inData;
+
+      return inData;
+   }
+
+   int mSlot;
+};
+
+}
+
+#else
 
 #include <pthread.h>
 

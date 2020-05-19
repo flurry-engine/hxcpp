@@ -1,6 +1,7 @@
 
 #ifdef HX_PSVITA
 
+   #include <pthread.h>
    #include <psp2/kernel/clib.h>
    #include <psp2/kernel/threadmgr.h> 
 
