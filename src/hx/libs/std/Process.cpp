@@ -455,7 +455,7 @@ void _hx_std_process_stdin_close( Dynamic handle )
    Wait until the process terminate, then returns its exit code.
    </doc>
 **/
-#if (HXCPP_API_LEVEL > 420)
+#if (HXCPP_API_LEVEL >= 420)
 Dynamic _hx_std_process_exit( Dynamic handle, bool block )
 {
    vprocess *p = getProcess(handle);
@@ -589,7 +589,7 @@ int _hx_std_process_stdout_read( Dynamic handle, Array<unsigned char> buf, int p
 int _hx_std_process_stderr_read( Dynamic handle, Array<unsigned char> buf, int pos, int len ) { return 0; }
 int _hx_std_process_stdin_write( Dynamic handle, Array<unsigned char> buf, int pos, int len ) { return 0; }
 void _hx_std_process_stdin_close( Dynamic handle ) { }
-#if (HXCPP_API_LEVEL > 420)
+#if (HXCPP_API_LEVEL >= 420)
 Dynamic _hx_std_process_exit( Dynamic handle, bool block ) { return 0; }
 #else
 int _hx_std_process_exit( Dynamic handle ) { return 0; }

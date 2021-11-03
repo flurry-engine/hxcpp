@@ -639,7 +639,7 @@ HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_process_stdout_read( Dynamic handle, A
 HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_process_stderr_read( Dynamic handle, Array<unsigned char> buf, int pos, int len );
 HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_process_stdin_write( Dynamic handle, Array<unsigned char> buf, int pos, int len );
 HXCPP_EXTERN_CLASS_ATTRIBUTES void _hx_std_process_stdin_close( Dynamic handle );
-#if (HXCPP_API_LEVEL > 420)
+#if (HXCPP_API_LEVEL >= 420)
 HXCPP_EXTERN_CLASS_ATTRIBUTES Dynamic _hx_std_process_exit( Dynamic handle, bool block );
 #else
 HXCPP_EXTERN_CLASS_ATTRIBUTES int _hx_std_process_exit( Dynamic handle );
