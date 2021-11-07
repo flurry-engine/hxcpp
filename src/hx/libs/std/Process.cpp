@@ -198,10 +198,6 @@ Dynamic _hx_std_process_run( String cmd, Array<String> vargs, int inShowParam )
 
    #ifdef NEKO_WINDOWS
    {       
-      SECURITY_ATTRIBUTES sattr;      
-      STARTUPINFOW sinf;
-      HANDLE proc = GetCurrentProcess();
-      HANDLE oread,eread,iwrite;
       // creates commandline
       String b;
       if (isRaw)
@@ -227,46 +223,84 @@ Dynamic _hx_std_process_run( String cmd, Array<String> vargs, int inShowParam )
       const wchar_t *name = b.__WCStr();
 
       hx::EnterGCFreeZone();
-      // startup process
-      sattr.nLength = sizeof(sattr);
-      sattr.bInheritHandle = TRUE;
-      sattr.lpSecurityDescriptor = NULL;
-      memset(&sinf,0,sizeof(sinf));
-      sinf.cb = sizeof(sinf);
-      sinf.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
-      sinf.wShowWindow = inShowParam;
-      CreatePipe(&oread,&sinf.hStdOutput,&sattr,0);
-      CreatePipe(&eread,&sinf.hStdError,&sattr,0);
-      CreatePipe(&sinf.hStdInput,&iwrite,&sattr,0);
 
-      HANDLE procOread,procEread,procIwrite;
+      HANDLE child_stdout_rd = NULL;
+      HANDLE child_stdout_wr = NULL;
 
-      DuplicateHandle(proc,oread,proc,&procOread,0,FALSE,DUPLICATE_SAME_ACCESS);
-      DuplicateHandle(proc,eread,proc,&procEread,0,FALSE,DUPLICATE_SAME_ACCESS);
-      DuplicateHandle(proc,iwrite,proc,&procIwrite,0,FALSE,DUPLICATE_SAME_ACCESS);
-      CloseHandle(oread);
-      CloseHandle(eread);
-      CloseHandle(iwrite);
-      //printf("Cmd %s\n",val_string(cmd));
-      PROCESS_INFORMATION pinf;
-      memset(&pinf,0,sizeof(pinf));
-      if( !CreateProcessW(NULL,(wchar_t *)name,NULL,NULL,TRUE,0,NULL,NULL,&sinf,&pinf) )
+      HANDLE child_stderr_rd = NULL;
+      HANDLE child_stderr_wr = NULL;
+
+      HANDLE child_stdin_rd = NULL;
+      HANDLE child_stdin_wr = NULL;
+
+      SECURITY_ATTRIBUTES saAttr;
+      saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+      saAttr.bInheritHandle = TRUE;
+      saAttr.lpSecurityDescriptor = NULL;
+
+      if (!CreatePipe(&child_stdout_rd, &child_stdout_wr, &saAttr, 0))
+      {
+         hx::ExitGCFreeZone();
+         hx::Throw(HX_CSTRING("Could not open a pipe for child stdout"));
+      }
+      if (!CreatePipe(&child_stderr_rd, &child_stderr_wr, &saAttr, 0))
+      {
+         hx::ExitGCFreeZone();
+         hx::Throw(HX_CSTRING("Could not open a pipe for child stderr"));
+      }
+      if (!CreatePipe(&child_stdin_rd, &child_stdin_wr, &saAttr, 0))
+      {
+         hx::ExitGCFreeZone();
+         hx::Throw(HX_CSTRING("Could not open a pipe for child stdin"));
+      }
+
+      if (!SetHandleInformation(child_stdout_rd, HANDLE_FLAG_INHERIT, 0))
+      {
+         hx::ExitGCFreeZone();
+         hx::Throw(HX_CSTRING("Could not set the inherit flag on child stdout pipe"));
+      }
+      // if (!SetHandleInformation(child_stderr_rd, HANDLE_FLAG_INHERIT, 0))
+      // {
+      //    hx::ExitGCFreeZone();
+      //    hx::Throw(HX_CSTRING("Could not set the inherit flag on child stderr pipe"));
+      // }
+      if (!SetHandleInformation(child_stdin_wr, HANDLE_FLAG_INHERIT, 0))
+      {
+         hx::ExitGCFreeZone();
+         hx::Throw(HX_CSTRING("Could not set the inherit flag on child stdin pipe"));
+      }
+
+      PROCESS_INFORMATION piProcInfo;
+      ZeroMemory(&piProcInfo, sizeof(PROCESS_INFORMATION));
+
+      STARTUPINFOW siStartInfo;
+      ZeroMemory(&siStartInfo, sizeof(STARTUPINFOW));
+
+      siStartInfo.cb = sizeof(STARTUPINFO);
+      siStartInfo.dwFlags = STARTF_USESTDHANDLES | STARTF_USESHOWWINDOW;
+      siStartInfo.wShowWindow = inShowParam;
+      siStartInfo.hStdOutput = child_stdout_wr;
+      siStartInfo.hStdError = child_stdout_wr;
+      siStartInfo.hStdInput = child_stdin_rd;
+
+      if (!CreateProcessW(NULL, (wchar_t *)name, NULL, NULL, TRUE, 0, NULL, NULL, &siStartInfo, &piProcInfo))
       {
          hx::ExitGCFreeZone();
          hx::Throw(HX_CSTRING("Could not start process"));
       }
-      // close unused pipes
-      CloseHandle(sinf.hStdOutput);
-      CloseHandle(sinf.hStdError);
-      CloseHandle(sinf.hStdInput);
+
+      CloseHandle(child_stdout_wr);
+      CloseHandle(child_stderr_wr);
+      CloseHandle(child_stdin_rd);
+
       hx::ExitGCFreeZone();
 
       p = new vprocess;
       p->create();
-      p->oread = procOread;
-      p->eread = procEread;
-      p->iwrite = procIwrite;
-      p->pinf = pinf;
+      p->oread = child_stdout_rd;
+      p->eread = child_stderr_rd;
+      p->iwrite = child_stdin_wr;
+      p->pinf = piProcInfo;
    }
    #else // not windows ...
    {
