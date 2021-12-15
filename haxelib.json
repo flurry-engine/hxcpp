@@ -8,6 +8,7 @@
   "releasenote": "See Changes.md",
   "contributors": ["gamehaxe", "HaxeFoundation"],
   "binaryversion": 48,
+  "main": "Run",
   "dependencies": {
 
   }
