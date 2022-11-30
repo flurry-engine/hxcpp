@@ -68,6 +68,7 @@ void FieldMapAppendFields(FieldMap *inMap,Array<String> &outFields)
 Anon_obj::Anon_obj(int inElements)
 {
    mFixedFields = inElements;
+   self = this;
    //mFields = hx::FieldMapCreate();
 }
 

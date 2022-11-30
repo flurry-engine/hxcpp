@@ -63,6 +63,7 @@ class HXCPP_EXTERN_CLASS_ATTRIBUTES Anon_obj : public hx::Object
 
    Dynamic mFields;
    int     mFixedFields;
+   Anon_obj* self;
 
 public:
    HX_IS_INSTANCE_OF enum { _hx_ClassId = hx::clsIdDynamic };
