@@ -157,6 +157,7 @@ class HXCPP_EXTERN_CLASS_ATTRIBUTES Object
 public:
    enum { _hx_ClassId = hx::clsIdDynamic };
 
+   unsigned int __hx_cachedHash = 0;
 
    inline void *operator new( size_t inSize, bool inContainer=true, const char *inName=0 )
    {

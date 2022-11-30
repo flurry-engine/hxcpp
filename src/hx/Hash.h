@@ -14,7 +14,14 @@ inline unsigned int HashCalcHash(cpp::Int64 inKey) { return (unsigned int)((inKe
 inline unsigned int HashCalcHash(const String &inKey) { return inKey.hash(); }
 inline unsigned int HashCalcHash(const Dynamic &inKey)
 {
-   return __hxcpp_obj_hash(inKey);
+   auto k = __hxcpp_obj_hash(inKey);
+
+   if (inKey.mPtr)
+   {
+      inKey.mPtr->__hx_cachedHash = k;
+   }
+
+   return k;
 }
 
 inline void HashClear(int &ioValue) { }
@@ -338,11 +345,15 @@ struct Hash : public HashBase< typename ELEMENT::Key >
 
 
    ELEMENT **bucket;
-
+   Array<unsigned int> hashCache;
+   Array<Key> keyCache;
 
    Hash() : HashBase<Key>( StoreOf<Value>::store )
    {
-      bucket = 0;
+      bucket    = 0;
+      hashCache = Array<unsigned int>(0, 0);
+      keyCache  = Array<Key>(0, 0);
+
       if (ELEMENT::WeakKeys && Element::ManageKeys)
          RegisterWeakHash(this);
    }
@@ -466,6 +477,10 @@ struct Hash : public HashBase< typename ELEMENT::Key >
             size--;
             if (bucketCount>8 && size < (bucketCount>>1) )
                compact();
+
+            hashCache->remove(hash);
+            keyCache->remove(inKey);
+
             return true;
          }
          head = &el.next;
@@ -601,6 +616,9 @@ struct Hash : public HashBase< typename ELEMENT::Key >
       el->next = bucket[hash&mask];
       bucket[hash&mask] = el;
 
+      hashCache->push(hash);
+      keyCache->push(inKey);
+
       #ifdef HXCPP_GC_GENERATIONAL
       unsigned char &mark =  ((unsigned char *)(this))[ HX_ENDIAN_MARK_ID_BYTE];
       if (mark == hx::gByteMarkID)
@@ -629,6 +647,8 @@ struct Hash : public HashBase< typename ELEMENT::Key >
       size = 0;
       mask = 0;
       bucketCount = 0;
+      hashCache->resize(0);
+      keyCache->resize(0);
    }
 
 
@@ -784,6 +804,8 @@ struct Hash : public HashBase< typename ELEMENT::Key >
 
    void __Mark(hx::MarkContext *__inCtx)
    {
+      HX_MARK_MEMBER(hashCache);
+      HX_MARK_MEMBER(keyCache);
       HX_MARK_ARRAY(bucket);
 
       HashMarker marker(__inCtx);
@@ -795,6 +817,8 @@ struct Hash : public HashBase< typename ELEMENT::Key >
    void __Visit(hx::VisitContext *__inCtx)
    {
       //printf(" visit hash %p\n", this);
+      HX_VISIT_MEMBER(hashCache);
+      HX_VISIT_MEMBER(keyCache);
       HX_VISIT_ARRAY(bucket);
       for(int b=0;b<bucketCount;b++)
       {
